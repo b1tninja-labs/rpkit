@@ -12,6 +12,8 @@
 | RFC 7935 | Proposed Standard | 2016-08 | 2026-11-05 |
 | RFC 9691 | Proposed Standard | 2024-12 | 2026-11-05 |
 | RFC 8416 | Proposed Standard | 2018-08 | 2026-11-05 |
+| RFC 9674 | Proposed Standard | 2024-12 | 2026-11-05 |
+| RFC 9829 | Proposed Standard | 2025-07 | 2026-11-05 |
 
 Citation rules, in the order they most often get broken:
 

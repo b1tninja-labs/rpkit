@@ -11,23 +11,27 @@ behaviour regressed. Reading the code and agreeing with it is not enough. That i
 Legend: `[ok]` implemented and pinned by a named test -- `[part]` partial, with what is
 missing stated -- `[ ]` not implemented -- `[no]` deliberate non-goal.
 
+A Where cell marked `(to be written)` names the test that will pin the row once it exists; no
+such test has been written yet, and the row cannot leave `[ ]` until it has. The Milestone
+column places the row on the ladder in section 2, and `-` means it is not placed yet.
+
 Update the affected row in the same commit that changes the behaviour. A row and its test
 drift apart within one release, and the document becomes useless exactly when it is needed.
 
 ## 1. Obligations
 
-| Obligation | Spec | Status | Where |
-|---|---|---|---|
-| `anchors.load_trust_anchor()` | RFC 9691 | `[ ]` | `tests/test_obligations.py::load_trust_anchor` |
-| `repository.open_cache()` | RFC 6480 | `[ ]` | `tests/test_obligations.py::open_cache` |
-| `rrdp.fetch_notification()` | RFC 8182 | `[ ]` | `tests/test_obligations.py::fetch_notification` |
-| `rrdp.apply_delta()` | RFC 8182, RFC 9697 | `[ ]` | `tests/test_obligations.py::apply_delta` |
-| `signedobject.decode_signed_object()` | RFC 6488 | `[ ]` | `tests/test_obligations.py::decode_signed_object` |
-| `manifest.check_manifest()` | RFC 9286 | `[ ]` | `tests/test_obligations.py::check_manifest` |
-| `manifest.next_manifest_number()` | RFC 9981 | `[ ]` | `tests/test_obligations.py::next_manifest_number` |
-| `validation.validate_roa()` | RFC 6487 | `[ ]` | `tests/test_obligations.py::validate_roa` |
-| `validation.validate_origin()` | RFC 6480 | `[ ]` | `tests/test_obligations.py::validate_origin` |
-| `slurm.apply_slurm()` | RFC 8416 | `[ ]` | `tests/test_obligations.py::apply_slurm` |
+| Obligation | Spec | Status | Where | Milestone |
+|---|---|---|---|---|
+| `anchors.load_trust_anchor()` | RFC 9691 | `[ ]` | `tests/test_obligations.py::test_load_trust_anchor` (to be written) | M4 |
+| `repository.open_cache()` | RFC 6480 | `[ ]` | `tests/test_obligations.py::test_open_cache` (to be written) | M2 |
+| `rrdp.fetch_notification()` | RFC 8182 | `[ ]` | `tests/test_obligations.py::test_fetch_notification` (to be written) | M2 |
+| `rrdp.apply_delta()` | RFC 8182, RFC 9697 | `[ ]` | `tests/test_obligations.py::test_apply_delta` (to be written) | M2 |
+| `signedobject.decode_signed_object()` | RFC 6488 | `[ ]` | `tests/test_obligations.py::test_decode_signed_object` (to be written) | M1 |
+| `manifest.check_manifest()` | RFC 9286 | `[ ]` | `tests/test_obligations.py::test_check_manifest` (to be written) | M3 |
+| `manifest.next_manifest_number()` | RFC 9981 | `[ ]` | `tests/test_obligations.py::test_next_manifest_number` (to be written) | M3 |
+| `validation.validate_roa()` | RFC 6487 | `[ ]` | `tests/test_obligations.py::test_validate_roa` (to be written) | M4 |
+| `validation.validate_origin()` | RFC 6480 | `[ ]` | `tests/test_obligations.py::test_validate_origin` (to be written) | M4 |
+| `slurm.apply_slurm()` | RFC 8416 | `[ ]` | `tests/test_obligations.py::test_apply_slurm` (to be written) | M5 |
 
 ## 2. Milestones
 

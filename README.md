@@ -52,6 +52,8 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 | RFC 7935 | Proposed Standard | 2016-08 | the algorithms and key sizes a relying party must speak |
 | RFC 9691 | Proposed Standard | 2024-12 | trust anchor key (TAK) profile |
 | RFC 8416 | Proposed Standard | 2018-08 | SLURM: local filtering of validated assertions |
+| RFC 9674 | Proposed Standard | 2024-12 | same-origin policy for RRDP: delta and snapshot files isolated per repository server |
+| RFC 9829 | Proposed Standard | 2025-07 | how the RPKI handles CRL Number extensions, updating the RFC 6487 profile |
 
 ### Errata watch
 
@@ -83,7 +85,8 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 ## Install
 
 ```bash
-git clone https://github.com/b1tninja/rpkit.cd rpkit
+git clone https://github.com/b1tninja/rpkit.git
+cd rpkit
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\\Scripts\\Activate.ps1
 pip install -e ".[dev]"

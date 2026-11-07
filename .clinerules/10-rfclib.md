@@ -56,6 +56,8 @@ with their line ranges.
 - RFC 7935 (Proposed Standard, 2016-08)
 - RFC 9691 (Proposed Standard, 2024-12)
 - RFC 8416 (Proposed Standard, 2018-08)
+- RFC 9674 (Proposed Standard, 2024-12)
+- RFC 9829 (Proposed Standard, 2025-07)
 
 ## Traps that have already bitten this portfolio
 

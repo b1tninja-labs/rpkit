@@ -15,7 +15,8 @@ import pytest
 import rpkit as package
 
 SURFACE = [
-    ("anchors", "load_trust_anchor", "RFC 9691"),
+    ("anchors", "load_trust_anchor", "RFC 8630"),
+    ("anchors", "parse_tal", "RFC 8630"),
     ("repository", "open_cache", "RFC 6480"),
     ("rrdp", "fetch_notification", "RFC 8182"),
     ("rrdp", "apply_delta", "RFC 8182, RFC 9697"),
@@ -23,8 +24,10 @@ SURFACE = [
     ("manifest", "check_manifest", "RFC 9286"),
     ("manifest", "next_manifest_number", "RFC 9981"),
     ("validation", "validate_roa", "RFC 6487"),
-    ("validation", "validate_origin", "RFC 6480"),
+    ("validation", "validate_origin", "RFC 6811"),
     ("slurm", "apply_slurm", "RFC 8416"),
+    ("slurm", "parse_slurm", "RFC 8416"),
+    ("slurm", "apply_slurm_router_keys", "RFC 8416"),
 ]
 
 

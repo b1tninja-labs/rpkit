@@ -42,3 +42,22 @@ One string everywhere: the distribution, the import and the console script. A na
 means one thing in the installer, in `import` and on `PATH` is the only arrangement that
 cannot surprise anyone, and it is also why this project does not sit one edit away from a
 project that already exists.
+
+## Dependency decisions (2026-11-13)
+
+- **asn1core is a runtime dependency.** A TAL carries a DER subjectPublicKeyInfo, and a resource
+  certificate carries RFC 3779 extensions inside DER; reading either with `struct` and slicing is a
+  second ASN.1 codec in the portfolio, and the owner's rule is that ASN.1 and certificate parsing are ours and live in asn1core.
+  asn1core keeps the original octets, which a signature check later needs. It resolves from the sibling
+  checkout until it publishes.
+- **`cryptography` is not declared yet.** RSA PKCS#1 v1.5 verification (RFC 7935) is the only
+  primitive the signed-object path needs, and it will come through `sigwire.verify.rsa.verify_pkcs1v15`, which
+  owns the encoding comparison. No row calls it yet, so no dependency is declared for it.
+- **CMS is signeddata's.** RFC 6488 objects are CMS SignedData. signeddata is a shell, so M1c waits;
+  rpkit does not write a parallel CMS reader.
+- **XML is expat, not defusedxml.** The `xml` extra was removed. RRDP parsing (RFC 8182) will use
+  `xml.parsers.expat` directly with DTD and entity declarations refused, so a billion-laughs document
+  is an error and not an allocation.
+- **Provenance of the TAL/SLURM choices** (strict base64, bare CR refusal, no host bits in SLURM
+  prefixes, `slurmVersion` as the integer 1) is in the module docstrings of `anchors.py` and `slurm.py`,
+  which say which are RFC requirements and which are this project's.

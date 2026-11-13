@@ -5,10 +5,11 @@
      the badges stay commented out until the tag exists.
 -->
 
-**Pre-alpha shell.** The package surface, the obligation matrix and the CI gates exist.
-No protocol behaviour is implemented: every public function raises `NotImplementedError`,
-and the test suite records that rather than hiding it. Read
-[ROADMAP.md](ROADMAP.md) before depending on any of it.
+**Pre-alpha.** Two edges work: Trust Anchor Locator parsing (RFC 8630) and SLURM parse and
+apply (RFC 8416), each pinned by tests against the RFC's own examples. Every other public
+function still raises `NotImplementedError`, and the test suite records that rather than hiding
+it. Fetching, CMS signature verification and path validation are not built; see
+[ROADMAP.md](ROADMAP.md) for what blocks them before depending on any of it.
 
 rpkit -- an RPKI relying party you can import
 
@@ -50,7 +51,12 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 | RFC 9981 | Proposed Standard | 2026-05 | manifest number behaviour at the 2**32 minus 1 boundary |
 | RFC 6487 | Proposed Standard | 2012-02 | resource certificate and CRL profile, relying-party path validation |
 | RFC 7935 | Proposed Standard | 2016-08 | the algorithms and key sizes a relying party must speak |
-| RFC 9691 | Proposed Standard | 2024-12 | trust anchor key (TAK) profile |
+| RFC 8630 | Proposed Standard | 2019-08 | the Trust Anchor Locator file format (implemented) |
+| RFC 9691 | Proposed Standard | 2024-12 | trust anchor key (TAK) signed object, a different object from the TAL |
+| RFC 3779 | Proposed Standard | 2004-06 | IP address and AS number resource extensions (decoded in asn1core) |
+| RFC 9582 | Proposed Standard | 2024-05 | the ROA profile; replaces the obsolete RFC 6482 |
+| RFC 8360 | Proposed Standard | 2018-04 | validation reconsidered: an alternative to RFC 6487 section 7 for overclaiming certificates |
+| RFC 6811 | Proposed Standard | 2013-01 | origin validation; implemented in routevalid, see ROADMAP.md D1 |
 | RFC 8416 | Proposed Standard | 2018-08 | SLURM: local filtering of validated assertions |
 | RFC 9674 | Proposed Standard | 2024-12 | same-origin policy for RRDP: delta and snapshot files isolated per repository server |
 | RFC 9829 | Proposed Standard | 2025-07 | how the RPKI handles CRL Number extensions, updating the RFC 6487 profile |
@@ -60,19 +66,20 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 - RFC 8182 carries 1 verified erratum and is updated by RFC 9674 and RFC 9697. Read all three before writing the RRDP client.
 - RFC 6487 carries 4 verified errata (algorithm and CRL number details; see also RFC 9829, 2025-07).
 - RFC 9286 carries 1 verified erratum. RFC 6486 is OBSOLETE and must never be cited as the manifest specification.
+- RFC 3779 carries 4 verified errata, RFC 8360 carries 2, and RFC 6482 is OBSOLETE (use RFC 9582). The full list is in ROADMAP.md section 3.
 
 ## Module layout
 
 | Module | Responsibility |
 |---|---|
-| `anchors` | trust anchors and TAKs: load, pin, expire (RFC 9691, RFC 6480) |
+| `anchors` | trust anchor locators: parse and load (RFC 8630); TAKs are a later row (RFC 9691) |
 | `repository` | publication point model, cache layout, rsync and RRDP selection (RFC 6480) |
 | `rrdp` | notification, snapshot and delta fetch plus desync recovery (RFC 8182, RFC 9697) |
 | `signedobject` | CMS SignedObject envelope decode and verification (RFC 6488) |
 | `manifest` | manifest objects, file hashes and number handling (RFC 9286, RFC 9981) |
-| `roa` | route origin authorisation objects: prefix, ASN, max length |
+| `roa` | route origin authorisation payloads: the `Vrp` triple (RFC 6811 section 2); ROA parsing is a later row (RFC 9582) |
 | `validation` | certificate path and resource extension checks (RFC 6487) |
-| `slurm` | local exception filtering (RFC 8416) |
+| `slurm` | local exception filtering: parse and apply (RFC 8416) |
 
 ## What it does not do
 
@@ -81,6 +88,17 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 - IRR database parsing
 - being the fastest validator; correctness and provenance are the product
 
+
+## Dependencies
+
+rpkit follows the portfolio rule: the standard library, plus the `cryptography` package for
+cryptographic primitives (RSA verification arrives through the sibling `sigwire[verify]` extra), and
+everything else ours. Today the one declared runtime dependency is `asn1core`, the portfolio's own
+ASN.1 and X.509 codec, used to check that a TAL key is one DER SEQUENCE and to decode RFC 3779
+resource extensions. It is not on an index yet, so it resolves from the sibling checkout
+(`../asn1core`) for tests and type checking and from a checkout step in CI; a standalone clone cannot
+run the suite until asn1core publishes. XML for RRDP will use the standard library's expat with
+entity and DTD handling refused, not a third-party parser.
 
 ## Install
 

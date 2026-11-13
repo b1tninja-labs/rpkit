@@ -32,7 +32,12 @@ classifiers = [
 ]
 # Empty unless a module cannot be honest without it. Every entry needs a sentence in
 # README.md explaining why the zero-dependency rule was broken for it.
-dependencies = []
+#
+# asn1core is the in-portfolio ASN.1/X.509 codec (docs/strategy.md says why a standard-library
+# parser is not enough). It is not on an index yet, so until it ships it resolves from the sibling
+# checkout, as pkix and certledger do: pytest's `pythonpath` and mypy's `mypy_path` below, and a
+# checkout step in CI. A standalone clone cannot run the suite until asn1core publishes.
+dependencies = ["asn1core", "cryptography"]
 
 [project.optional-dependencies]
 dev = [
@@ -46,7 +51,6 @@ dev = [
   # first being able to build one, so the build dependency belongs in the dev group.
   "build",
 ]
-xml = ["defusedxml>0.7"]
 
 [project.urls]
 Homepage = "https://github.com/b1tninja/rpkit"
@@ -69,7 +73,7 @@ include = ["/rpkit/", "/tests/", "/docs/", "/README.md", "/ROADMAP.md", "/CHANGE
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "../asn1core", "../sigwire"]
 asyncio_mode = "auto"
 addopts = "-ra"
 
@@ -91,6 +95,9 @@ exclude_lines = [
 ]
 
 [tool.ruff]
+# CI checks asn1core out into .deps/; linting a borrowed checkout would make this gate depend on
+# another project's style.
+extend-exclude = [".deps"]
 target-version = "py312"
 line-length = 100
 
@@ -113,6 +120,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.12"
+mypy_path = "../asn1core:../sigwire"
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true

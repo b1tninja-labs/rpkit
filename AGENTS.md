@@ -54,9 +54,14 @@ rather than merely incomplete.
 3. **Normative text is never paraphrased from memory.** Fetch it with `rfclib` and
    cite the section. If the text you fetch does not say what the obligation claims,
    the obligation is wrong: fix the roadmap row and say so in the commit.
-4. **Dependencies.** `pyproject.toml` here declares no runtime dependencies. Adding a runtime
-   dependency needs a paragraph of justification in `docs/strategy.md` explaining
-   why the standard library is not enough.
+4. **Dependencies.** The portfolio rule (2026-11-13) is the standard library, plus `cryptography`
+   for cryptographic primitives (RSA, AES, ECDSA, EdDSA and the like, through the sibling `sigwire[verify]`
+   once it is wired in), plus the portfolio's own projects by sibling path: `asn1core` now,
+   `pkix` and `signeddata` when their rows need them. ASN.1, X.509, CMS and every wire format are
+   ours; never add `asn1crypto`, `pyasn1`, `defusedxml` or similar. `pyproject.toml` declares
+   `asn1core`, resolved from `../asn1core` through pytest's `pythonpath` and mypy's `mypy_path`.
+   Any other runtime dependency needs a paragraph in `docs/strategy.md` explaining why the standard
+   library is not enough.
 5. **Scope.** What is deliberately absent is listed under Non-goals in `README.md`.
    An agent that "helpfully" implements a non-goal has expanded the API surface that
    has to be supported forever.
@@ -66,6 +71,8 @@ rather than merely incomplete.
 - RFC 8182 carries 1 verified erratum and is updated by RFC 9674 and RFC 9697. Read all three before writing the RRDP client.
 - RFC 6487 carries 4 verified errata (algorithm and CRL number details; see also RFC 9829, 2025-07).
 - RFC 9286 carries 1 verified erratum. RFC 6486 is OBSOLETE and must never be cited as the manifest specification.
+- RFC 3779 carries 4 verified errata (2537 deletes the "max must contain a 1 bit" paragraph, 6792 fixes Appendix B), RFC 8360 carries 2, RFC 6482 is OBSOLETE (RFC 9582), and RFC 9691 is the TAK object, not the TAL (RFC 8630).
+- Implemented so far: `anchors.parse_tal`, `slurm.parse_slurm` and `slurm.apply_slurm`. The RFC 3779 decoder is `asn1core/resources.py`, tested in asn1core.
 
 ## Protocol work
 

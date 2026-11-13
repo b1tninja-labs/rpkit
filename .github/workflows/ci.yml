@@ -27,6 +27,16 @@ jobs:
           repository: b1tninja/sigwire
           path: .deps/sigwire
       - run: python -m pip install --no-deps .deps/sigwire
+      # signeddata (CMS) and pkix (certificate and CRL signatures) are unpublished siblings too.
+      - uses: actions/checkout@v4
+        with:
+          repository: b1tninja/signeddata
+          path: .deps/signeddata
+      - uses: actions/checkout@v4
+        with:
+          repository: b1tninja/pkix
+          path: .deps/pkix
+      - run: python -m pip install --no-deps .deps/signeddata .deps/pkix
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
@@ -67,6 +77,16 @@ jobs:
           repository: b1tninja/sigwire
           path: .deps/sigwire
       - run: python -m pip install --no-deps .deps/sigwire
+      # signeddata (CMS) and pkix (certificate and CRL signatures) are unpublished siblings too.
+      - uses: actions/checkout@v4
+        with:
+          repository: b1tninja/signeddata
+          path: .deps/signeddata
+      - uses: actions/checkout@v4
+        with:
+          repository: b1tninja/pkix
+          path: .deps/pkix
+      - run: python -m pip install --no-deps .deps/signeddata .deps/pkix
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q --cov
       # Asserts stripped: a wire path guarded by assert is unguarded in production.

@@ -61,3 +61,11 @@ project that already exists.
 - **Provenance of the TAL/SLURM choices** (strict base64, bare CR refusal, no host bits in SLURM
   prefixes, `slurmVersion` as the integer 1) is in the module docstrings of `anchors.py` and `slurm.py`,
   which say which are RFC requirements and which are this project's.
+
+## Validation procedure (decided 2026-11-13)
+
+The default certification path validation is RFC 6487 section 7: a certificate whose resources are not encompassed by its issuer's is rejected. RFC 8360 (validation reconsidered) is selectable with `rpkit.resources.Procedure.RFC8360`: a certificate that carries the RFC 8360 policy (id-cp 3, with the id-pe 28 and 29 extensions) and overclaims is accepted for the intersection with the issuer's Verified Resource Set and a warning names the overclaim; a certificate under the original policy is still rejected. Every result carries the procedure that produced it, so a VRP set can always be traced to the rule that admitted it.
+
+## Dependencies added 2026-11-13
+
+`signeddata` (CMS `cms.load`), `pkix` (`pkix.validity`: certificate and CRL signatures and validity periods), `sigwire[verify]` (RSA through `rpkit/_rsa.py`) and `asn1core`, all by sibling path; `cryptography` only through sigwire and in the tests (it builds the throwaway keys, certificates and CRLs of `tests/rpkibuild.py`).

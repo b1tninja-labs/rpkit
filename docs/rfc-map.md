@@ -28,6 +28,8 @@
 | RFC 6811 | Proposed Standard | 2013-01 | origin validation; updated by 8481 and 8893; no errata; routevalid's home, see ROADMAP section 5 |
 | RFC 8481 | Proposed Standard | 2018-09 | updates 6811; updated by 9324; no errata |
 
+Read in full on 2026-11-13 for the M1b and M1c work: RFC 6487 sections 4.8 and 5 and 7, RFC 6488 sections 2 (normative statements) and 3, RFC 9589 section 4, RFC 9582 sections 4 and 5, RFC 9286 section 4, RFC 9981 sections 1 to 3, RFC 9829 section 3, RFC 7935 (normative statements), RFC 5754 section 2, RFC 8360 section 4, X.690 section 11.5. RFC 6485 is OBSOLETE (RFC 7935), 1 verified erratum on file; nothing here implements it.
+
 Every row above was read from `rfclib.info` on 2026-11-13. RFC 6486 is obsolete (RFC 9286 replaces it) and RFC 7730 is obsolete (RFC 8630 replaces it); neither is cited. ASPA has no RFC in the library: the verification procedure is a draft (RFC 9774 cites `draft-ietf-sidrops-aspa-verification`), so ASPA stays a recorded gap in ROADMAP.md and is not a row.
 
 Citation rules, in the order they most often get broken:
@@ -38,3 +40,7 @@ Citation rules, in the order they most often get broken:
 4. Where a claim came from a body outside the RFC series, that body is named here.
 
 Re-verify with the RFC library rather than memory: `info('RFCnnnn')` for current status, `errata('RFCnnnn')` for corrections, and `read('RFCnnnn', view='normative')` for the MUST and SHOULD statements that become obligation rows.
+
+## Real data, 2026-11-13
+
+`tests/test_signed_object_corpus.py` reads the RIPE NCC archive of the AFRINIC trust anchor for 2026-11-12 (`tools/corpus.json`). Nothing in it is refused by the parsers. The one ROA `validate_roa` rejects (sha256 `fb8d739873780c60ba6fdf557f2e590d490c923392698a5222adbaad21f5c381`) is signed by an EE certificate that claims 102.219.68.0/22 while its issuer, CN=F367278DAF, holds only an IPv6 block and AS328920: RFC 6487 section 7.2 item 6 (read through rfclib) requires the resources to be encompassed by the issuer's, so this is a real-world deviation, and Routinator emits no VRP for it either. Under `Procedure.RFC8360` rpkit also reports `path.overclaim` for it; whether an EE overclaim should instead surface as RFC 9582 section 5's prefix-outside-resources check under RFC 8360 is not settled here. 59 ROAs in 15 publication points have no certification path because the CA certificate their EE's Authority Information Access names is not published (orphans); Routinator did not keep them either.

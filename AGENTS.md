@@ -57,11 +57,17 @@ rather than merely incomplete.
 4. **Dependencies.** The portfolio rule (2026-11-13) is the standard library, plus `cryptography`
    for cryptographic primitives (RSA, AES, ECDSA, EdDSA and the like, through the sibling `sigwire[verify]`
    once it is wired in), plus the portfolio's own projects by sibling path: `asn1core` now,
-   `pkix` and `signeddata` when their rows need them. ASN.1, X.509, CMS and every wire format are
+   `signeddata` (CMS), `pkix` (`pkix.validity`) and `sigwire[verify]` (RSA), all wired in on 2026-11-13. ASN.1, X.509, CMS and every wire format are
    ours; never add `asn1crypto`, `pyasn1`, `defusedxml` or similar. `pyproject.toml` declares
-   `asn1core`, resolved from `../asn1core` through pytest's `pythonpath` and mypy's `mypy_path`.
+   them, resolved from `../asn1core`, `../sigwire`, `../signeddata` and `../pkix` through pytest's `pythonpath` and mypy's `mypy_path`.
    Any other runtime dependency needs a paragraph in `docs/strategy.md` explaining why the standard
-   library is not enough.
+   library is not enough. Real repository data is never vendored: `tools/fetch_corpus.py` fetches the
+   pinned files of `tools/corpus.json` into a cache outside the tree (`RPKIT_CORPUS_DIR`, else the user
+   cache directory), one request per second, and `tests/test_signed_object_corpus.py` skips loudly
+   without them. Files are found by SHA-256, so several projects' cache variables may name one
+   directory. The census takes about five minutes, so its tests carry the `corpus` marker and run
+   only when asked: `RPKIT_CORPUS=1 python -m pytest -q` (or `python -m pytest -q -m corpus`); the
+   default gates and `python -O` skip them, saying how to run them.
 5. **Scope.** What is deliberately absent is listed under Non-goals in `README.md`.
    An agent that "helpfully" implements a non-goal has expanded the API surface that
    has to be supported forever.

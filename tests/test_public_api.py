@@ -22,7 +22,7 @@ SURFACE = [
     ("rrdp", "apply_delta", "RFC 8182, RFC 9697"),
     ("signedobject", "decode_signed_object", "RFC 6488"),
     ("manifest", "check_manifest", "RFC 9286"),
-    ("manifest", "next_manifest_number", "RFC 9981"),
+    ("manifest", "check_replay", "RFC 9981"),
     ("validation", "validate_roa", "RFC 6487"),
     ("validation", "validate_origin", "RFC 6811"),
     ("slurm", "apply_slurm", "RFC 8416"),

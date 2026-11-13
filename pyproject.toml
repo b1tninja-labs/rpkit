@@ -37,7 +37,7 @@ classifiers = [
 # parser is not enough). It is not on an index yet, so until it ships it resolves from the sibling
 # checkout, as pkix and certledger do: pytest's `pythonpath` and mypy's `mypy_path` below, and a
 # checkout step in CI. A standalone clone cannot run the suite until asn1core publishes.
-dependencies = ["asn1core", "cryptography"]
+dependencies = ["asn1core", "signeddata", "pkix", "sigwire[verify]", "cryptography"]
 
 [project.optional-dependencies]
 dev = [
@@ -69,13 +69,14 @@ path = "rpkit/__init__.py"
 packages = ["rpkit"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/rpkit/", "/tests/", "/docs/", "/README.md", "/ROADMAP.md", "/CHANGELOG.md", "/LICENSE", "/NOTICE"]
+include = ["/rpkit/", "/tests/", "/tools/fetch_corpus.py", "/tools/corpus.json", "/docs/", "/README.md", "/ROADMAP.md", "/CHANGELOG.md", "/LICENSE", "/NOTICE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "../asn1core", "../sigwire"]
+pythonpath = [".", "../asn1core", "../sigwire", "../signeddata", "../pkix"]
 asyncio_mode = "auto"
 addopts = "-ra"
+markers = ["corpus: a slow real-data test, run only with the project's RPKIT_CORPUS=1 or -m corpus"]
 
 [tool.coverage.run]
 branch = true
@@ -86,7 +87,7 @@ source = ["rpkit"]
 # coverage for the line that raises. Raise this in the commit that implements a
 # milestone, never in a commit that only adds tests, so the number keeps meaning
 # "this behaviour is exercised" rather than "this file was imported".
-fail_under = 45
+fail_under = 90
 show_missing = true
 exclude_lines = [
   "if __name__ == .__main__.:",
@@ -120,7 +121,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.12"
-mypy_path = "../asn1core:../sigwire"
+mypy_path = "../asn1core:../sigwire:../signeddata:../pkix"
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true

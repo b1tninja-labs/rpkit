@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from . import anchors, apps, cli, manifest, repository, roa, rrdp, signedobject, slurm, validation
 from .anchors import load_trust_anchor
-from .manifest import check_manifest, next_manifest_number
+from .manifest import check_manifest, check_replay
 from .repository import open_cache
 from .rrdp import apply_delta, fetch_notification
 from .signedobject import decode_signed_object
@@ -23,12 +23,12 @@ __all__ = [
     "apply_slurm",
     "apps",
     "check_manifest",
+    "check_replay",
     "cli",
     "decode_signed_object",
     "fetch_notification",
     "load_trust_anchor",
     "manifest",
-    "next_manifest_number",
     "open_cache",
     "repository",
     "roa",

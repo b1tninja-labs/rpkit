@@ -1,0 +1,33 @@
+{
+  "about": "A real RPKI repository archive read by tests/test_signed_object_corpus.py. Fetched by tools/fetch_corpus.py into a cache outside the repository; never vendored. Each pin is the file as served on the read date.",
+  "files": [
+    {
+      "name": "ripe-archive-afrinic-20261112-repo.tar.xz",
+      "url": "https://ftp.ripe.net/rpki/afrinic.tal/2026/11/12/repo.tar.xz",
+      "kind": "RPKI repository archive: everything Routinator fetched from the AFRINIC trust anchor on 2026-11-12, RRDP and rsync trees",
+      "why": "the smallest daily archive of the five RIR trust anchors in the RIPE NCC RPKI repository archive (listing read 2026-11-13: afrinic 29M, lacnic 104M, apnic 170M, ripencc 242M, arin 539M); a published daily archive rather than one RRDP snapshot because it holds the whole tree under the TA, delegated CAs included, so chains can be built from it",
+      "read": "2026-11-13",
+      "terms": "RIPE NCC RPKI repository archive, https://ftp.ripe.net/rpki/README.txt and https://github.com/RIPE-NCC/internet-dataset-descriptions/blob/main/rpki-repo-archive.md read 2026-11-13 (no licence stated there); RIPE NCC Website and Publicly Available RIPE NCC Services Terms of Service, https://www.ripe.net/about-us/legal/terms-of-service/, article 3.5 forbids re-distribution unless the service permits it. The objects are published by AFRINIC; AFRINIC's own RPKI terms were not read. Not vendored.",
+      "sha256": "5b24191a6400796864690c2799737ddd4b133b962496a5ed13087f6cabc35488",
+      "size": 30442660
+    },
+    {
+      "name": "ripe-archive-afrinic-20261112-repo.tar.xz.sha256",
+      "url": "https://ftp.ripe.net/rpki/afrinic.tal/2026/11/12/repo.tar.xz.sha256",
+      "kind": "the archive operator's SHA-256 of repo.tar.xz, a second witness to the pin",
+      "read": "2026-11-13",
+      "terms": "as repo.tar.xz. Not vendored.",
+      "sha256": "e71c436e759bce5dccfd4f89f6341ebcf341852ab33c9a65e74cb28f66b69da3",
+      "size": 78
+    },
+    {
+      "name": "ripe-archive-afrinic-20261112-output.json.xz",
+      "url": "https://ftp.ripe.net/rpki/afrinic.tal/2026/11/12/output.json.xz",
+      "kind": "Routinator's validated output for the same run: the VRPs a second implementation accepted from these objects",
+      "read": "2026-11-13",
+      "terms": "as repo.tar.xz. Not vendored.",
+      "sha256": "0ac0525587c0835c85e1c9d233e873e1607efc0cc82ba3f3261d2db029660446",
+      "size": 111660
+    }
+  ]
+}

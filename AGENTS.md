@@ -65,7 +65,7 @@ rather than merely incomplete.
    pinned files of `tools/corpus.json` into a cache outside the tree (`RPKIT_CORPUS_DIR`, else the user
    cache directory), one request per second, and `tests/test_signed_object_corpus.py` skips loudly
    without them. Files are found by SHA-256, so several projects' cache variables may name one
-   directory. The census takes about five minutes, so its tests carry the `corpus` marker and run
+   directory. The census takes about a minute per trust anchor (the first LACNIC-size archive more), so its tests carry the `corpus` marker and run
    only when asked: `RPKIT_CORPUS=1 python -m pytest -q` (or `python -m pytest -q -m corpus`); the
    default gates and `python -O` skip them, saying how to run them.
 5. **Scope.** What is deliberately absent is listed under Non-goals in `README.md`.

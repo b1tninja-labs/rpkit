@@ -17,6 +17,14 @@ the RFC 9582 section 5 conditions on the EE certificate (an IP resources extensi
 procedure. It does not fetch anything, decide which trust anchor to trust, or look for a CRL
 elsewhere than in the ``crls`` it is given: a CA certificate whose issuer has no CRL among them is
 an error.
+
+RFC 9829 section 3.2 revises RFC 6487 section 7.2 item 5: the CRL that applies is the one the
+certificate's CRL Distribution Points name and the issuer's current manifest lists with a matching
+hash. Given ``publication_points`` (issuer Subject Key Identifier to :class:`PublicationPoint`),
+``validate_roa`` selects each certificate's CRL that way (:func:`rpkit.publication.select_crl`),
+checks the CRLDP and AIA profiles, and consults no other CRL. A :class:`ValidationCache` keeps the
+work that depends only on a CA certificate or a CRL (parsing, signature checks, resource reads), so
+validating thousands of ROAs of one repository does it once.
 """
 
 from __future__ import annotations
@@ -34,11 +42,12 @@ from pkix.validity import check_signature, check_signed_data, check_validity
 
 from . import resources as res
 from .findings import Finding, Severity, errors
+from .publication import PublicationPoint, aia_findings, check_aia, crldp_findings, select_crl
 from .roa import ROA_CONTENT_TYPE, Roa, RoaError, Vrp, parse_roa_content
 from .signedobject import SignedObjectError, decode_signed_object, verify_rsa_sha256
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from typing import Any
 
     Repository = Any  # placeholder: give it a real type in the milestone that needs it
@@ -49,6 +58,7 @@ if TYPE_CHECKING:
 __all__ = [
     "CrlResult",
     "RoaValidation",
+    "ValidationCache",
     "check_crl",
     "validate_origin",
     "validate_roa",
@@ -230,32 +240,116 @@ class RoaValidation:
         return self.roa.vrps() if self.valid and self.roa is not None else ()
 
 
-def _cert(der: bytes) -> asn1core.Certificate:
-    return asn1core.parse_certificate(der)
+class ValidationCache:
+    """Work that depends only on a CA certificate or a CRL, kept across :func:`validate_roa` calls.
+
+    Validating the ROAs of one repository checks the same few CA certificates and CRLs thousands
+    of times: parsing them, verifying their signatures, reading their resources. This keeps each
+    result under the bytes it was computed from (a CRL result also under the time), so the second
+    ROA below a CA pays only for its own EE certificate. It never changes an answer, only when it
+    is computed; a cache must not outlive the data it was filled from, and is not thread-safe.
+    The memory grows with the number of distinct certificates and CRLs seen.
+    """
+
+    def __init__(self) -> None:
+        self._certs: dict[bytes, asn1core.Certificate] = {}
+        self._crl_issuers: dict[bytes, Any] = {}
+        self._crls: dict[tuple[bytes, bytes, datetime.datetime], CrlResult] = {}
+        self._signatures: dict[tuple[bytes, bytes], str | None] = {}
+        self._resources: dict[
+            tuple[bytes, res.Procedure], tuple[res.CertResources | None, tuple[Finding, ...]]
+        ] = {}
+
+    def certificate(self, der: bytes) -> asn1core.Certificate:
+        """The parsed certificate (a parse error is raised, not cached)."""
+        cert = self._certs.get(der)
+        if cert is None:
+            cert = self._certs[der] = asn1core.parse_certificate(der)
+        return cert
+
+    def crl(
+        self, crl_der: bytes, certs: Sequence[asn1core.Certificate], at: datetime.datetime
+    ) -> CrlResult:
+        """:func:`check_crl` against whichever of ``certs`` the CRL names as its issuer."""
+        if crl_der not in self._crl_issuers:
+            try:
+                self._crl_issuers[crl_der] = parse_crl(crl_der).issuer
+            except Asn1Error:
+                self._crl_issuers[crl_der] = None
+        name = self._crl_issuers[crl_der]
+        issuer = next(
+            (c for c in certs if name is not None and names_equal(name, c.subject)), certs[0]
+        )
+        key = (crl_der, issuer.raw, at)
+        result = self._crls.get(key)
+        if result is None:
+            result = self._crls[key] = check_crl(crl_der, issuer, at)
+        return result
+
+    def signature_error(
+        self, cert: asn1core.Certificate, issuer: asn1core.Certificate
+    ) -> str | None:
+        """The text of the pkix error when ``cert`` does not verify under ``issuer``, else None."""
+        key = (cert.raw, issuer.raw)
+        if key not in self._signatures:
+            try:
+                check_signature(cert, issuer)
+            except PkixError as error:
+                self._signatures[key] = str(error)
+            else:
+                self._signatures[key] = None
+        return self._signatures[key]
+
+    def resources(
+        self, cert: asn1core.Certificate, procedure: res.Procedure
+    ) -> tuple[res.CertResources | None, tuple[Finding, ...]]:
+        """``read_resources`` and ``profile_check`` of a certificate: (resources, findings), the
+        resources being None when they cannot be read (the one finding then says why)."""
+        key = (cert.raw, procedure)
+        hit = self._resources.get(key)
+        if hit is None:
+            try:
+                read = res.read_resources(cert)
+            except res.ResourceReadError as error:
+                hit = (None, (_err("resources.read", str(error), "RFC 3779"),))
+            else:
+                hit = (read, tuple(res.profile_check(read, procedure=procedure)))
+            self._resources[key] = hit
+        return hit
 
 
 def _path_findings(
     chain: Sequence[asn1core.Certificate],
     crls: Sequence[CrlResult],
     at: datetime.datetime,
+    *,
+    points: Mapping[bytes, PublicationPoint] | None = None,
+    cache: ValidationCache | None = None,
 ) -> list[Finding]:
-    """Signatures, names, validity and revocation along ``chain`` (trust anchor first, EE last)."""
+    """Signatures, names, validity and revocation along ``chain`` (trust anchor first, EE last).
+
+    With ``points`` each certificate below the trust anchor takes the CRL its issuer's manifest
+    and its own CRLDP select (RFC 9829 section 3.2) and the AIA and CRLDP profiles are checked;
+    without it a CRL is any of ``crls`` issued under the issuer's name.
+    """
     found: list[Finding] = []
     spec = "RFC 6487 section 7.2"
+    cache = cache or ValidationCache()
     for index, cert in enumerate(chain):
         label = f"certificate {index}"
         issuer = chain[index - 1] if index else cert
         if index and not names_equal(cert.issuer, issuer.subject):
             found.append(_err("path.names", f"{label}: issuer is not the subject above it", spec))
-        try:
-            check_signature(cert, issuer)
-        except PkixError as error:
-            found.append(_err("path.signature", f"{label}: {error}", spec))
+        problem = cache.signature_error(cert, issuer)
+        if problem is not None:
+            found.append(_err("path.signature", f"{label}: {problem}", spec))
         if not check_validity(cert, at).ok:
             found.append(
                 _err("path.validity", f"{label}: not valid at the time of validation", spec)
             )
-        if index:
+        if index and points is not None:
+            found.extend(_selected_crl_findings(cert, issuer, label, points, at, cache))
+        elif index:
             matching = [
                 c for c in crls if c.crl is not None and names_equal(c.crl.issuer, issuer.subject)
             ]
@@ -275,6 +369,54 @@ def _path_findings(
     return found
 
 
+def _selected_crl_findings(
+    cert: asn1core.Certificate,
+    issuer: asn1core.Certificate,
+    label: str,
+    points: Mapping[bytes, PublicationPoint],
+    at: datetime.datetime,
+    cache: ValidationCache,
+) -> list[Finding]:
+    """The RFC 9829 section 3.2 revocation check of one certificate against its issuer's point."""
+    spec = "RFC 6487 section 7.2 item 5, RFC 9829 section 3.2"
+    found = [
+        Finding(f.severity, f.rule, f"{label}: {f.message}", f.spec)
+        for f in (*crldp_findings(cert), *aia_findings(cert))
+    ]
+    ski_ext = issuer.extension(_SKI)
+    point = None
+    if ski_ext is not None:
+        try:
+            point = points.get(parse_subject_key_identifier(ski_ext.value))
+        except Asn1Error:
+            point = None
+    if point is None:
+        found.append(
+            _err(
+                "path.manifest-missing",
+                f"{label}: no manifest for its issuer, so no CRL can be identified",
+                spec,
+            )
+        )
+        return found
+    if point.certificate_uri is not None and not any(f.rule == "aia.missing" for f in found):
+        found.extend(check_aia(cert, point.certificate_uri))
+    choice = select_crl(cert, point, at)
+    found.extend(
+        Finding(f.severity, f.rule, f"{label}: {f.message}", f.spec) for f in choice.findings
+    )
+    if choice.crl is None:
+        found.append(
+            _err("path.crl-missing", f"{label}: the issuer's manifest selects no CRL", spec)
+        )
+        return found
+    result = cache.crl(choice.crl, [issuer], at)
+    found.extend(result.findings)
+    if cert.serial in result.revoked_serials:
+        found.append(_err("path.revoked", f"{label}: serial {cert.serial} is revoked", spec))
+    return found
+
+
 def validate_roa(
     blob: bytes,
     chain: Sequence[bytes],
@@ -282,6 +424,8 @@ def validate_roa(
     at: datetime.datetime,
     *,
     procedure: res.Procedure = res.Procedure.RFC6487,
+    publication_points: Mapping[bytes, PublicationPoint] | None = None,
+    cache: ValidationCache | None = None,
 ) -> RoaValidation:
     """Validate one ROA end to end (see the module docstring). Behaviour defined by RFC 6487.
 
@@ -291,6 +435,13 @@ def validate_roa(
     section 7 (the default) a certificate that overclaims is rejected; ``Procedure.RFC8360``
     selects RFC 8360 section 4.2.4.4. Every error is in ``findings``; the VRPs are returned only
     for a ROA with none. The trust anchor's own validity is checked at ``at`` like the others.
+
+    ``publication_points`` maps an issuing CA's Subject Key Identifier (the value in its
+    children's Authority Key Identifier) to its :class:`PublicationPoint`. When given, every
+    certificate below the trust anchor is checked against the CRL its issuer's manifest and its own
+    CRLDP select (RFC 9829 section 3.2), a certificate whose issuer has no point is an error
+    (``path.manifest-missing``), and ``crls`` is not consulted. ``cache`` carries the per-CA work
+    from one call to the next.
     """
     if at.tzinfo is None:
         raise ValueError("at must be timezone-aware")
@@ -317,19 +468,21 @@ def validate_roa(
     if not chain:
         found.append(_err("path.empty", "no trust anchor certificate", "RFC 6487 section 7.2"))
         return RoaValidation(procedure, roa, tuple(found))
-    certs = [_cert(c) for c in chain] + [signed.ee_certificate]
-    crl_results = [check_crl(c, certs[_issuer_index(c, certs)], at) for c in crls]
+    cache = cache or ValidationCache()
+    certs = [cache.certificate(c) for c in chain] + [signed.ee_certificate]
+    crl_results = [] if publication_points is not None else [cache.crl(c, certs, at) for c in crls]
     for result in crl_results:
         found.extend(result.findings)
-    found.extend(_path_findings(certs, crl_results, at))
+    found.extend(_path_findings(certs, crl_results, at, points=publication_points, cache=cache))
     resources = []
     for index, cert in enumerate(certs):
-        try:
-            read = res.read_resources(cert)
-        except res.ResourceReadError as error:
-            found.append(_err("resources.read", f"certificate {index}: {error}", "RFC 3779"))
+        read, problems = cache.resources(cert, procedure)
+        if read is None:
+            found.append(
+                _err("resources.read", f"certificate {index}: {problems[0].message}", "RFC 3779")
+            )
             return RoaValidation(procedure, roa, tuple(found))
-        found.extend(res.profile_check(read, procedure=procedure))
+        found.extend(problems)
         resources.append(read)
     ee = resources[-1]
     if ee.ip is None or any(f.inherit for f in ee.ip.families):
@@ -368,18 +521,6 @@ def validate_roa(
                 )
             )
     return RoaValidation(procedure, roa, tuple(found))
-
-
-def _issuer_index(crl_der: bytes, certs: Sequence[asn1core.Certificate]) -> int:
-    """Which certificate in ``certs`` issued the CRL, or 0 so an unmatched CRL fails its own checks."""
-    try:
-        issuer = parse_crl(crl_der).issuer
-    except Asn1Error:
-        return 0
-    for index, cert in enumerate(certs):
-        if names_equal(issuer, cert.subject):
-            return index
-    return 0
 
 
 def validate_origin(prefix: str, asn: int, roas: Iterable) -> RovState:

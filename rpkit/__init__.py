@@ -5,7 +5,19 @@ Python has no RPKI relying-party implementation at all.
 
 from __future__ import annotations
 
-from . import anchors, apps, cli, manifest, repository, roa, rrdp, signedobject, slurm, validation
+from . import (
+    anchors,
+    apps,
+    cli,
+    manifest,
+    publication,
+    repository,
+    roa,
+    rrdp,
+    signedobject,
+    slurm,
+    validation,
+)
 from .anchors import load_trust_anchor
 from .manifest import check_manifest, check_replay
 from .repository import open_cache
@@ -30,6 +42,7 @@ __all__ = [
     "load_trust_anchor",
     "manifest",
     "open_cache",
+    "publication",
     "repository",
     "roa",
     "rrdp",

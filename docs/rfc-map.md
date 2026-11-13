@@ -8,7 +8,7 @@
 | RFC 6487 | Proposed Standard | 2012-02 | updated by 7318, 8209, 9829; 4 verified errata |
 | RFC 7318 | Proposed Standard | 2014-07 | updates 6487 (policy qualifiers) |
 | RFC 8209 | Proposed Standard | 2017-09 | updates 6487 (BGPsec router certificates); 1 erratum on file, not verified |
-| RFC 9829 | Proposed Standard | 2025-07 | updates 6487 (CRL Number handling) |
+| RFC 9829 | Proposed Standard | 2025-07 | updates 6487 (CRL Number handling; section 2 and 3.2: the CRL is the one the CRLDP names and the issuer's current manifest lists with a matching hash, `rpkit.publication.select_crl`) |
 | RFC 8360 | Proposed Standard | 2018-04 | validation reconsidered (overclaim handling); alternative to the 6487 section 7 procedure; 2 verified errata |
 | RFC 6482 | Proposed Standard | 2012-02 | **OBSOLETE**, obsoleted by 9582; 3 verified errata; never cited |
 | RFC 9582 | Proposed Standard | 2024-05 | ROA profile; obsoletes 6482; no errata |

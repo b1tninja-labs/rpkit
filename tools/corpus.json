@@ -28,6 +28,34 @@
       "terms": "as repo.tar.xz. Not vendored.",
       "sha256": "0ac0525587c0835c85e1c9d233e873e1607efc0cc82ba3f3261d2db029660446",
       "size": 111660
+    },
+    {
+      "name": "ripe-archive-lacnic-20261112-repo.tar.xz",
+      "url": "https://ftp.ripe.net/rpki/lacnic.tal/2026/11/12/repo.tar.xz",
+      "kind": "RPKI repository archive: everything Routinator fetched from the LACNIC trust anchor on 2026-11-12, RRDP and rsync trees",
+      "why": "the second smallest daily archive of the five (listing read 2026-11-13: afrinic 29M, lacnic 104M); a second trust anchor with its own operator, delegated CAs and object mix, to check that nothing in the AFRINIC census was an accident of one repository",
+      "read": "2026-11-13",
+      "terms": "RIPE NCC RPKI repository archive, https://ftp.ripe.net/rpki/README.txt and https://github.com/RIPE-NCC/internet-dataset-descriptions/blob/main/rpki-repo-archive.md read 2026-11-13 (no licence stated there); RIPE NCC Website and Publicly Available RIPE NCC Services Terms of Service, https://www.ripe.net/about-us/legal/terms-of-service/, article 3.5 forbids re-distribution unless the service permits it. The objects are published by LACNIC; LACNIC's own RPKI terms were not read. Not vendored.",
+      "size": 108608444,
+      "sha256": "e6645fafb801051bc94a87415f40f90195a46d38d74f2e2101e8ae572a097735"
+    },
+    {
+      "name": "ripe-archive-lacnic-20261112-repo.tar.xz.sha256",
+      "url": "https://ftp.ripe.net/rpki/lacnic.tal/2026/11/12/repo.tar.xz.sha256",
+      "kind": "the archive operator's SHA-256 of repo.tar.xz, a second witness to the pin",
+      "read": "2026-11-13",
+      "terms": "as repo.tar.xz. Not vendored.",
+      "size": 78,
+      "sha256": "46e55876a6b5f2dd5a357843b09da6bfd5b86d85d1009caaee2229e8f9a539e3"
+    },
+    {
+      "name": "ripe-archive-lacnic-20261112-output.json.xz",
+      "url": "https://ftp.ripe.net/rpki/lacnic.tal/2026/11/12/output.json.xz",
+      "kind": "Routinator's validated output for the same run: the VRPs a second implementation accepted from these objects",
+      "read": "2026-11-13",
+      "terms": "as repo.tar.xz. Not vendored.",
+      "size": 207812,
+      "sha256": "391deb8922a30f3ebcc852ffbe7eedba60a8e674ff303a0aca052064b1986ea0"
     }
   ]
 }

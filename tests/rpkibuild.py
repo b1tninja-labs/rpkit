@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import AuthorityInformationAccessOID, NameOID
 
 UTC = datetime.UTC
 ID_SIGNED_DATA = "1.2.840.113549.1.7.2"
@@ -218,6 +218,10 @@ class CertSpec:
     ip_critical: bool = True
     as_critical: bool = True
     crl_uri: str | None = "rsync://rpki.example.net/repo/ca.crl"
+    aia_uri: str | None = None
+    aia_critical: bool = False
+    crldp_override: x509.CRLDistributionPoints | None = None
+    crldp_critical: bool = False
     self_signed: bool = False
     both_ip_versions: bool = False
 
@@ -271,7 +275,9 @@ def make_cert(spec: CertSpec) -> bytes:
             ),
             critical=True,
         )
-    if spec.crl_uri and not spec.self_signed:
+    if spec.crldp_override is not None:
+        builder = builder.add_extension(spec.crldp_override, critical=spec.crldp_critical)
+    elif spec.crl_uri and not spec.self_signed:
         builder = builder.add_extension(
             x509.CRLDistributionPoints(
                 [
@@ -284,6 +290,18 @@ def make_cert(spec: CertSpec) -> bytes:
                 ]
             ),
             critical=False,
+        )
+    if spec.aia_uri and not spec.self_signed:
+        builder = builder.add_extension(
+            x509.AuthorityInformationAccess(
+                [
+                    x509.AccessDescription(
+                        AuthorityInformationAccessOID.CA_ISSUERS,
+                        x509.UniformResourceIdentifier(spec.aia_uri),
+                    )
+                ]
+            ),
+            critical=spec.aia_critical,
         )
     ip_oid = "1.3.6.1.5.5.7.1.28" if spec.v2_extensions else "1.3.6.1.5.5.7.1.7"
     as_oid = "1.3.6.1.5.5.7.1.29" if spec.v2_extensions else "1.3.6.1.5.5.7.1.8"

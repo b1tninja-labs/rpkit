@@ -34,13 +34,18 @@ from typing import Any
 import asn1core
 import pytest
 from asn1core.crl import parse_crl
-from asn1core.extensions import parse_access_descriptions, parse_crl_distribution_points
+from asn1core.extensions import (
+    parse_access_descriptions,
+    parse_crl_distribution_points,
+    parse_subject_key_identifier,
+)
 
 from rpkit import resources as res
 from rpkit.manifest import ManifestError, parse_manifest
+from rpkit.publication import PublicationPoint, aia_findings, crldp_findings
 from rpkit.roa import RoaError, Vrp, parse_roa_content
 from rpkit.signedobject import SignedObjectError, decode_signed_object, verify_rsa_sha256
-from rpkit.validation import validate_roa
+from rpkit.validation import ValidationCache, validate_roa
 
 TOOL = pathlib.Path(__file__).resolve().parents[1] / "tools" / "fetch_corpus.py"
 REPO = "ripe-archive-afrinic-20261112-repo.tar.xz"
@@ -143,7 +148,53 @@ def _note(counter: collections.Counter[tuple[str, str]], kind: str, rule: str) -
     counter[(kind, rule)] += 1
 
 
-def take_census(archive: Archive) -> Census:
+_SIA = "1.3.6.1.5.5.7.1.11"  # Subject Information Access
+_SKI = "2.5.29.14"
+_CA_REPOSITORY = (1, 3, 6, 1, 5, 5, 7, 48, 5)
+_RPKI_MANIFEST = (1, 3, 6, 1, 5, 5, 7, 48, 10)
+
+
+def publication_points(
+    archive: Archive, certs: dict[str, asn1core.Certificate], ta: asn1core.Certificate
+) -> dict[bytes, PublicationPoint]:
+    """Every CA's publication point as fetched: its manifest (from the SIA) and the files it lists.
+
+    Keyed by the CA's Subject Key Identifier, which is what its children's Authority Key Identifier
+    holds. The files are the ones of the archive's ``unvalidated`` tree, the unchecked fetch.
+    """
+    objects = archive.trees["unvalidated"]
+    points: dict[bytes, PublicationPoint] = {}
+    for uri, cert in [(None, ta), *certs.items()]:
+        sia = cert.extension(_SIA)
+        if sia is None:
+            continue
+        where: dict[tuple[int, ...], str | None] = {
+            method: _rsync(
+                ad.location.value
+                for ad in parse_access_descriptions(sia.value)
+                if ad.method == method
+            )
+            for method in (_CA_REPOSITORY, _RPKI_MANIFEST)
+        }
+        repository, manifest_uri = where[_CA_REPOSITORY], where[_RPKI_MANIFEST]
+        if repository is None or manifest_uri not in objects:
+            continue
+        manifest = parse_manifest(decode_signed_object(objects[manifest_uri]).econtent)
+        files = {
+            e.name: objects[repository + e.name]
+            for e in manifest.files
+            if repository + e.name in objects
+        }
+        ext = cert.extension(_SKI)
+        assert ext is not None
+        points[parse_subject_key_identifier(ext.value)] = PublicationPoint(
+            repository, manifest, files, certificate_uri=uri
+        )
+    return points
+
+
+def take_census(archive: Archive, *, selected: bool = False, at: datetime.datetime = AT) -> Census:
+    """The census; with ``selected`` every CRL is the one its issuer's manifest and CRLDP select."""
     objects = archive.trees["unvalidated"]
     ta = asn1core.parse_certificate(archive.ta)
     census = Census()
@@ -179,25 +230,22 @@ def take_census(archive: Archive) -> Census:
             _note(census.refused, kind, type(error).__name__)
             continue
         census.parsed[kind] += 1
+    cache = ValidationCache()
+    points = publication_points(archive, certs, ta) if selected else None
     for uri, blob in objects.items():
         if uri.endswith(".roa"):
-            _validate(uri, blob, objects, certs, ta, census)
+            _validate(uri, blob, objects, certs, ta, census, cache, points, at)
     return census
 
 
-def _validate(
-    uri: str,
-    blob: bytes,
+def build_chain(
+    cert: asn1core.Certificate,
     objects: dict[str, bytes],
     certs: dict[str, asn1core.Certificate],
     ta: asn1core.Certificate,
-    census: Census,
-) -> None:
-    try:
-        cert = decode_signed_object(blob).ee_certificate
-    except SignedObjectError:
-        census.outcomes["not decoded"] += 1
-        return
+) -> tuple[list[bytes], list[bytes]] | None:
+    """The CA certificates from the trust anchor down to ``cert``'s issuer, and the CRLs the
+    CRLDPs along the way name, all read from the archive; None when a link is not in it."""
     chain: list[bytes] = []
     crls: list[bytes] = []
     for _ in range(16):
@@ -209,13 +257,39 @@ def _validate(
         if parent is None and asn1core.names_equal(cert.issuer, ta.subject):
             parent = ta
         if parent is None:
-            census.outcomes["no chain in the archive"] += 1
-            return
+            return None
         chain.insert(0, parent.raw)
         if parent.raw == ta.raw:
             break
         cert = parent
-    result = validate_roa(blob, chain, crls, AT)
+    return chain, crls
+
+
+def _validate(
+    uri: str,
+    blob: bytes,
+    objects: dict[str, bytes],
+    certs: dict[str, asn1core.Certificate],
+    ta: asn1core.Certificate,
+    census: Census,
+    cache: ValidationCache,
+    points: dict[bytes, PublicationPoint] | None = None,
+    at: datetime.datetime = AT,
+) -> None:
+    try:
+        cert = decode_signed_object(blob).ee_certificate
+    except SignedObjectError:
+        census.outcomes["not decoded"] += 1
+        return
+    built = build_chain(cert, objects, certs, ta)
+    if built is None:
+        census.outcomes["no chain in the archive"] += 1
+        return
+    chain, crls = built
+    if points is None:
+        result = validate_roa(blob, chain, crls, at, cache=cache)
+    else:
+        result = validate_roa(blob, chain, (), at, publication_points=points, cache=cache)
     census.outcomes["valid" if result.valid else "invalid"] += 1
     for finding in result.findings:
         _note(census.findings, str(finding.severity), finding.rule)
@@ -308,3 +382,125 @@ def test_vrps_equal_routinators(census: Census):
     ours = {(v.prefix, v.max_length, v.asn) for v in census.vrps}
     assert len(theirs) == 32842
     assert ours == theirs
+
+
+@pytest.fixture(scope="module")
+def selected_census(archive: Archive) -> Census:
+    return take_census(archive, selected=True)
+
+
+@pytest.mark.corpus
+def test_the_crl_each_manifest_and_crldp_select_gives_the_same_verdicts(
+    census: Census, selected_census: Census
+):
+    """RFC 9829 section 3.2 on a real repository: every CA has its manifest in the archive, every
+    certificate's CRLDP names a CRL its issuer's manifest lists with the matching hash, and the
+    outcomes, findings, valid ROAs and VRPs are exactly those of choosing a CRL by issuer name."""
+    assert selected_census.outcomes == census.outcomes
+    assert selected_census.findings == census.findings
+    assert selected_census.invalid == census.invalid
+    assert selected_census.valid_uris == census.valid_uris
+    assert selected_census.vrps == census.vrps
+
+
+@pytest.mark.corpus
+def test_the_real_crldp_and_aia_extensions_follow_the_profile(archive: Archive):
+    """RFC 6487 sections 4.8.6 and 4.8.7 on all 1,491 CA certificates of the archive: no finding."""
+    certs = [
+        asn1core.parse_certificate(blob)
+        for uri, blob in archive.trees["unvalidated"].items()
+        if uri.endswith(".cer")
+    ]
+    assert len(certs) == 1491
+    assert [f for c in certs for f in (*crldp_findings(c), *aia_findings(c))] == []
+
+
+@pytest.mark.corpus
+def test_the_overclaiming_ee_is_refused_under_rfc_6487_and_rfc_8360_alike(archive: Archive):
+    """Decision, row ``validation.ee-overclaim-rfc-9582-or-8360``: the one invalid ROA of the
+    archive has an EE certificate under the RFC 6487 policy, for which RFC 8360 section 4.2.4.4
+    step 8 also says "MUST be rejected". The two procedures differ only for a certificate under
+    the RFC 8360 policy, where RFC 8360 section 4.2.5 takes the ROA's prefixes against the verified
+    set; RFC 9582 section 5 does not repeat that alternative."""
+    objects = archive.trees["unvalidated"]
+    (blob,) = [
+        b
+        for uri, b in objects.items()
+        if uri.endswith(".roa")
+        and hashlib.sha256(b).hexdigest()
+        == "fb8d739873780c60ba6fdf557f2e590d490c923392698a5222adbaad21f5c381"
+    ]
+    ta = asn1core.parse_certificate(archive.ta)
+    certs = {u: asn1core.parse_certificate(b) for u, b in objects.items() if u.endswith(".cer")}
+    ee = decode_signed_object(blob).ee_certificate
+    assert res.read_resources(ee).uses_v2_policy is False
+    built = build_chain(ee, objects, certs, ta)
+    assert built is not None
+    chain, crls = built
+    for procedure in (res.Procedure.RFC6487, res.Procedure.RFC8360):
+        result = validate_roa(blob, chain, crls, AT, procedure=procedure)
+        assert not result.valid
+        assert [f.rule for f in result.findings if str(f.severity) == "error"] == ["path.overclaim"]
+
+
+# -- a second trust anchor: LACNIC (row corpus.more-trust-anchors) ---------------------------------------
+
+LACNIC = "ripe-archive-lacnic-20261112-repo.tar.xz"
+LACNIC_ROUTINATOR = "ripe-archive-lacnic-20261112-output.json.xz"
+
+
+@pytest.fixture(scope="module")
+def lacnic_output() -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(lzma.decompress(corpus(LACNIC_ROUTINATOR).read_bytes()))
+    return data
+
+
+@pytest.fixture(scope="module")
+def lacnic_census(lacnic_output: dict[str, Any]) -> Census:
+    generated = lacnic_output["metadata"]["generatedTime"].replace("Z", "+00:00")
+    at = datetime.datetime.fromisoformat(generated)
+    return take_census(load_archive(corpus(LACNIC)), at=at)
+
+
+@pytest.mark.corpus
+def test_the_lacnic_archive_parses_and_validates_with_known_outcomes(lacnic_census: Census):
+    """The LACNIC trust anchor on 2026-11-12, validated at Routinator's own generation time
+    (05:25:43 UTC; the AFRINIC run is at 05:03:21, and using one time for both turns CRLs that
+    are current in one run into "not yet valid" in the other). About 8 minutes.
+
+    64 of 38,509 ROAs are invalid: 55 under a CRL whose nextUpdate had passed at that time, 6 with
+    a certificate outside its validity, 3 whose issuer has no CRL in the archive (below).
+    """
+    census = lacnic_census
+    assert census.parsed == {"roa": 38509, "mft": 7365, "crl": 7365, "cer": 7192}
+    assert census.refused == {}
+    assert census.outcomes == {"valid": 37500, "no chain in the archive": 945, "invalid": 64}
+    assert census.findings == {
+        ("error", "crl.stale"): 55,
+        ("error", "path.validity"): 6,
+        ("error", "path.crl-missing"): 3,
+        ("warning", "roa.duplicate-prefix"): 30,
+    }
+
+
+@pytest.mark.corpus
+def test_lacnic_vrps_equal_routinators_but_for_three_from_a_missing_crl(
+    lacnic_census: Census, lacnic_output: dict[str, Any]
+):
+    """The VRP sets differ by exactly three VRPs of AS264941, all from ROAs of one publication
+    point ``rsync://repo/satcom/0/`` that is in the archive's ``unvalidated`` tree but in neither
+    its ``validated`` tree nor with a CRL: Routinator's output kept them (from an earlier fetch of
+    that point, by inference: its validated tree has none of them), rpkit refuses a certificate
+    whose issuer has no CRL (``path.crl-missing``). Nothing is in our set and not in theirs."""
+    theirs = {
+        (ipaddress.ip_network(r["prefix"]), r["maxLength"], int(r["asn"].removeprefix("AS")))
+        for r in lacnic_output["roas"]
+    }
+    ours = {(v.prefix, v.max_length, v.asn) for v in lacnic_census.vrps}
+    assert len(theirs) == 46318
+    assert ours <= theirs
+    assert {(str(p), m, a) for p, m, a in theirs - ours} == {
+        ("168.232.132.0/22", 24, 264941),
+        ("177.67.152.0/22", 24, 264941),
+        ("2804:3048::/32", 48, 264941),
+    }
